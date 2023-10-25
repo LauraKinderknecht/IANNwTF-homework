@@ -25,6 +25,6 @@ print()
 
 #take all rows and only take the fourth column - using slicing
 print("After step 3: slicing")
-sliced_array = array[::,3::2]
+sliced_array = array[::,3:4:]
 print(sliced_array)
 
