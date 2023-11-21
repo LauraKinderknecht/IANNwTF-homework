@@ -1,4 +1,3 @@
-from typing import Any
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -113,6 +112,12 @@ class SigmoidActivation():
         self.input = x
         #apply sigmoid function and return the solution
         return 1 / (1 + np.exp(-x))
+    
+    #using the sigmoid derivative function 
+    #calculate the backwards step
+    def backward(self, grad_output):
+        sigmoid_grad = self.__call__(self.input) * (1 - self.__call__(self.input))
+        return grad_output * sigmoid_grad
 
 '''
 #example for sigmoid activation with a minibatch of size 5
@@ -174,82 +179,102 @@ print(soft_activate(batch_generator(data_tuples, 5)[1]))
 class MLP_layer():
     # input_size = number of units/perceptrons in the preceding layer
     # num_perceptrons = number of units/perceptrons in the given layer
-    #def __init__(self, input_size, num_perceptrons, activation_func = "sigmoid", loc = 0.0, scale = 0.2):
-    def __init__(self, input_size, num_perceptrons, loc = 0.0, scale = 0.2):
+    def __init__(self, input_size, num_perceptrons, activation = SigmoidActivation(), loc = 0.0, scale = 0.2):
+    #def __init__(self, input_size, num_perceptrons, loc = 0.0, scale = 0.2):
     
         #initialize weights as small, random, normally distributed values
         self.weights = np.random.normal(loc = loc, scale = scale, size = (input_size, num_perceptrons))
         #initialize the bias values set to zero
         self.bias = np.zeros((1, num_perceptrons))
-        #self.activation_func = activation_func
 
-    def call(self, input):
+        if activation == SigmoidActivation():
+            self.activation = SigmoidActivation()
+        elif activation == SoftmaxActivation():
+            self.activation = SoftmaxActivation()
+
+    def forward(self, input):
         #apply matrix multiplication and multiply the input and the weights
         #then add the bias
         #print("weights: ", self.weights)
         #print("input: ", input)
         output = np.matmul(input, self.weights) + self.bias
-        
-        '''
-        # if the given layer is a hidden layer
-        if self.activation_func == "sigmoid":
-            #use sigmoid activation
-            sigmoid = SigmoidActivation()
-            output_sigm = sigmoid(output)
-            return output_sigm
-        
-        #if the current layer is the final layer
-        elif self.activation_func == "softmax":
-            #use softmax activation
-            softmax = SoftmaxActivation()
-            output_softmax = softmax(output)
-            return output_softmax
-        '''
-            
 
+        # !!!
+        # here is where the problem is
+        # there seems to be an issue with the self.activation - but we couldn't resolve it by now!
+        # !!!
+
+        output = self.activation(output)
+        return output
+    
+    #for the weights do matrixmultiplication with the transposed input and the grad_output
+    def backward_weights(self, grad_output, input):
+        grad_weights = np.matmul(input.T, grad_output)
+        return grad_weights
+
+    #for the backward_input do matrix multiplication with the transposed weights and the grad_output
+    def backward_input(self, grad_output):
+        grad_input = np.matmul(grad_output, self.weights.T)
+        return grad_input
+
+    #for the backwaards step assign the grad_activation, grad_weights and grad_input and return grad_weights and grad_input
+    def backward(self, grad_output, input):
+        grad_activation = self.activation.backward(grad_output)
+        grad_weights = self.backward_weights(grad_activation, input)
+        grad_input = self.backward_input(grad_activation)
+        return grad_input, grad_weights
 
 ###
 # 2.5 Putting together the MLP
 ###
 
 class MLP():
-    def __init__(self, input_size, sizes_hidden_layers, size_outputlayer):
-        self.hidden_layers = []
-        #iterate through all layers
-        for layer_idx in range(len(sizes_hidden_layers)):
-            #determine current input size
-            #if we're not in the first layer, get size using sizes_hidden_layers[layer_idx - 1]
-            #otherwise the current layer's input size is just the input size of the whole MLP
-            current_input_size =  sizes_hidden_layers[layer_idx - 1] if layer_idx > 0 else input_size
-            #for all hidden layers, append a MLP Layer to the hidden_layers list 
-            self.hidden_layers = self.hidden_layers.append(MLP_layer(input_size = current_input_size, num_perceptrons = sizes_hidden_layers[layer_idx]))
+    def __init__(self, layer_sizes):
+        self.layers = []
         
-        #for the final layer, the input size will be the last layer size from the hidden layer sizes array
-        #and the number of perceptrons will be the given size of the output layer
-        self.final_layer = MLP_layer(input_size = sizes_hidden_layers[-1], num_perceptrons = size_outputlayer)
+        #go through all layers
 
-        #define the activations
-        self.sigmoid_activ = SigmoidActivation()    
-        self.softmax_activ = SoftmaxActivation()
+        for i in range(len(layer_sizes)-1):
+            hidden_layer = MLP_layer(input_size=layer_sizes[i], num_perceptrons=layer_sizes[i+1], activation=SigmoidActivation())
+            self.layers.append(hidden_layer)
+        
+        self.layers[-1].activation = SoftmaxActivation()
     
-    def __call__(self, x):
-        #for every single layer calculate the output and apply the sigmoid function to it
-        for hidden_layer in self.hidden_layers:
-            x = hidden_layer.call(x)
-            x = self.sigmoid(x)
-        
-        #for the final layer, also compute the output and now use the softmax activation function
-        x = self.final_layer(x)
-        x = self.softmax_activ(x)
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer.forward(x)
         return x
+    
+    def backward(self, x, target, loss_obj):
+        # Initialize a list of dictionaries to store activations, pre-activations, and gradients for each layer
+        tape = [{} for _ in range(len(self.layers))]
 
+        # Forward pass
+        for i, layer in enumerate(self.layers):
+            x = layer.forward(x)
+            tape[i]['input'] = x
+            tape[i]['pre_activation'] = np.matmul(tape[i]['input'], layer.weights) + layer.bias
+
+        # Compute CCE loss and its gradient
+        loss = loss_obj.loss_calculation(x, target)
+        grad_loss = loss_obj.backward(x, target)
+
+        # Backward pass
+        for i in reversed(range(len(self.layers))):
+            grad_input, grad_weights = self.layers[i].backward(grad_loss, tape[i]['input'])
+            grad_loss = grad_input
+
+            tape[i]['grad_weights'] = grad_weights
+
+        return loss, tape
+    
 
 ###
 # 2.6 CCE loss function
 ###
 
 class CCE_Loss():
-    def __init_(self):
+    def __init__(self):
         pass
 
     #function input are the made predictions and the targets
@@ -260,4 +285,49 @@ class CCE_Loss():
         cce_result = -1 * np.sum(prob, axis=1)
         return cce_result
     
+    def backward(self, pred, target):
+        grad_loss = np.array(pred) - np.array(target)
+        return grad_loss
 
+#training function
+def train(model, data_tuples, minibatch_size, epochs, learning_rate):
+    loss_obj = CCE_Loss()
+    losses = []
+
+    #iterate through the epoches
+    for epoch in range(epochs):
+
+        #start with a total loss of 0
+        total_loss = 0
+
+        #iterate through all minibatches
+        for _ in range(len(data_tuples) // minibatch_size):
+            minibatch_data, minibatch_target = batch_generator(data_tuples, minibatch_size)
+            #calculate the predictions with a forward run through the MLP
+            predictions = model.forward(minibatch_data)
+            #compute loss and tape with backpropagation
+            loss, tape = model.backward(predictions, minibatch_target, loss_obj)
+
+            #add the mean loss to the total loss
+            total_loss += np.mean(loss)
+
+            # Update weights using gradient descent
+            for i, layer in enumerate(model.layers):
+                layer.weights -= learning_rate * np.mean(tape[i]['grad_weights'], axis=0)
+                layer.bias -= learning_rate * np.mean(grad_loss, axis=0)
+
+        #calculate the average loss over the minibatches
+        average_loss = total_loss / (len(data_tuples) // minibatch_size)
+        losses.append(average_loss)
+
+        print(f"Epoch {epoch + 1}/{epochs}, Loss: {average_loss}")
+
+    # Plotting loss vs. epoch
+    plt.plot(losses)
+    plt.xlabel('Epoch')
+    plt.ylabel('Average Loss')
+    plt.title('Training Loss vs. Epoch')
+    plt.show()
+
+#training a MLP
+train(model = MLP(layer_sizes=[64, 32, 32, 10]), data_tuples=data_tuples, minibatch_size=5, epochs=100, learning_rate=0.1)
