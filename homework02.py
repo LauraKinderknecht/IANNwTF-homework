@@ -155,6 +155,8 @@ visualization(train_losses, test_losses, test_accuracies)
 ##3.0 Adjusting hyperparameters(commented in the codes above)
 '''
 
+Associated plots for each change are provided in the folder "HW2_images for different adjustments"
+
 a. Learning rate
 Modified the learning rate (lr) from 0.1 to 0.01.
 -> A high learning rate may cause the model to overshoot the minimum, leading to slower convergence or even divergence.
