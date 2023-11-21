@@ -21,6 +21,7 @@ How many training/test images are there? -> There are 60.000 training images and
 What's the image shape? -> The image shape is (28,28,1).
 What range are pixel values in? -> The pixel values are in the range [0; 255].
 
+#visualize data (a few images with their corresponding labels)
 tfds.show_examples(train_dataset, ds_info)
 """
 
@@ -96,9 +97,10 @@ def test(model, test_data, loss_function):
     test_accuracy_aggr = []
     test_loss_aggr = []
 
+    #iterate through all (input, target) tuple in our test_data
     for (input, target) in test_data:
-        prediction = model(input)
-        sample_test_loss = loss_function(target, prediction)
+        prediction = model(input)  #get prediction by applying the model to the images in the test datatset
+        sample_test_loss = loss_function(target, prediction)  #calculate the loss by applying the loss function to target and prediction
         sample_test_accuracy = np.argmax(target, axis=1) == np.argmax(prediction, axis=1)
         sample_test_accuracy = np.mean(sample_test_accuracy)
         test_loss_aggr.append(sample_test_loss.numpy())
@@ -116,6 +118,8 @@ def training_loop(num_epochs, model, train_ds, test_ds, loss, optimizer, train_l
         print(f"Epoch: {str(epoch)} starting with accuracy {test_accuracies[-1]}")
 
         epoch_loss_aggr = []
+
+        #iterate through all (input, target) tuples in train_ds
         for input, target in train_ds:
             train_loss = train_step(model, input, target, loss, optimizer)
             epoch_loss_aggr.append(train_loss)
