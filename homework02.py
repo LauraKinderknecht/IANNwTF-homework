@@ -16,9 +16,10 @@ import matplotlib.pyplot as plt
 ( train_dataset , test_dataset ) , ds_info = tfds.load( "mnist" , split =[ "train" ,"test"] , as_supervised = True , with_info = True )
 """
 print(ds_info)
-How many training/test images are there? 60000/ 10000
-What's the image shape? (28,28,1)
-What range are pixel values in? data type = uint8, range =
+
+How many training/test images are there? -> There are 60.000 training images and 10.000 test images.
+What's the image shape? -> The image shape is (28,28,1).
+What range are pixel values in? -> The pixel values are in the range [0; 255].
 
 tfds.show_examples(train_dataset, ds_info)
 """
